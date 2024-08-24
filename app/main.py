@@ -69,7 +69,7 @@ async def upload_photo(
 
 @app.get("/images/previews")
 async def get_image_previews():
-    images = photos_collection.find({}, {"_id": 0, "file_id": 1, "filename": 1})
+    images = photos_collection.find({}, {"_id": 0})
     return list(images)
 
 @app.get("/images/{file_id}/preview")
