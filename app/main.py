@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from pymongo import MongoClient
 import os
 import uuid
@@ -34,7 +34,13 @@ def create_preview(image_path, preview_path, height=400):
         img.save(preview_path)
 
 @app.post("/upload/")
-async def upload_photo(file: UploadFile = File(...)):
+async def upload_photo(
+    file: UploadFile = File(...),
+    email: str = Form(...),
+    name: str = Form(...),
+    photo_context: str = Form(...),
+    tags: str = Form(...)
+):
     file_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_DIR, file_id + "-" + file.filename)
     preview_path = os.path.join(PREVIEW_DIR, file_id + "-" + file.filename)
@@ -44,9 +50,15 @@ async def upload_photo(file: UploadFile = File(...)):
 
     create_preview(file_path, preview_path)
 
+    tags_list = tags.split(',')
+
     photo_data = {
         "file_id": file_id,
         "filename": file.filename,
+        "email": email,
+        "name": name,
+        "photo_context": photo_context,
+        "tags": tags_list,
     }
     result = photos_collection.insert_one(photo_data)
 
