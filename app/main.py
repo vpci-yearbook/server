@@ -32,6 +32,7 @@ def create_preview(image_path, preview_path, height=400):
         new_width = int(height * aspect_ratio)
         img = img.resize((new_width, height), Image.LANCZOS)
         img.save(preview_path)
+        return img.width, img.height
 
 @app.post("/upload/")
 async def upload_photo(
@@ -48,7 +49,10 @@ async def upload_photo(
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
 
-    create_preview(file_path, preview_path)
+    preview_width, preview_height = create_preview(file_path, preview_path)
+
+    with Image.open(file_path) as img:
+        full_width, full_height = img.width, img.height
 
     tags_list = tags.split(',')
 
@@ -59,6 +63,10 @@ async def upload_photo(
         "name": name,
         "photo_context": photo_context,
         "tags": tags_list,
+        "full_width": full_width,
+        "full_height": full_height,
+        "preview_width": preview_width,
+        "preview_height": preview_height,
     }
     result = photos_collection.insert_one(photo_data)
 
