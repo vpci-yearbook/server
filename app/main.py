@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from pymongo import MongoClient
 import os
 import uuid
@@ -74,7 +74,8 @@ async def upload_photo(
         "full_height": full_height,
         "preview_width": preview_width,
         "preview_height": preview_height,
-        "upload_time": upload_time
+        "upload_time": upload_time,
+        "approved": False
     }
     result = photos_collection.insert_one(photo_data)
 
@@ -85,8 +86,8 @@ async def upload_photo(
 
 @app.get("/images/previews")
 async def get_image_previews():
-    images = list(photos_collection.find({}, {"_id": 0}))
-    
+    images = list(photos_collection.find({"approved": True}, {"_id": 0}))
+
     grouped_images = defaultdict(list)
     for image in images:
         upload_date = image["upload_time"].date().isoformat()
@@ -116,3 +117,18 @@ async def get_full_image(file_id: str):
 
     file_path = os.path.join(UPLOAD_DIR, image["file_id"] + "-" + image["filename"])
     return FileResponse(file_path)
+
+@app.post("/images/{file_id}/approve")
+async def approve_photo(file_id: str):
+    result = photos_collection.update_one(
+        {"file_id": file_id},
+        {"$set": {"approved": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return {"message": "Photo approved successfully"}
+
+@app.get("/images/unapproved")
+async def get_unapproved_images():
+    images = list(photos_collection.find({"approved": False}, {"_id": 0}))
+    return images
