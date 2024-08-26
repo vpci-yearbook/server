@@ -5,6 +5,9 @@ import uuid
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
+from datetime import datetime
+import pytz
+from collections import defaultdict
 
 app = FastAPI()
 
@@ -42,6 +45,10 @@ async def upload_photo(
     photo_context: str = Form(...),
     tags: str = Form(...)
 ):
+
+    toronto_tz = pytz.timezone('America/Toronto')
+    upload_time = datetime.now(toronto_tz)
+
     file_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_DIR, file_id + "-" + file.filename)
     preview_path = os.path.join(PREVIEW_DIR, file_id + "-" + file.filename)
@@ -67,6 +74,7 @@ async def upload_photo(
         "full_height": full_height,
         "preview_width": preview_width,
         "preview_height": preview_height,
+        "upload_time": upload_time
     }
     result = photos_collection.insert_one(photo_data)
 
@@ -77,8 +85,19 @@ async def upload_photo(
 
 @app.get("/images/previews")
 async def get_image_previews():
-    images = photos_collection.find({}, {"_id": 0})
-    return list(images)
+    images = list(photos_collection.find({}, {"_id": 0}))
+    
+    grouped_images = defaultdict(list)
+    for image in images:
+        upload_date = image["upload_time"].date().isoformat()
+        grouped_images[upload_date].append(image)
+
+    sorted_grouped_images = sorted(grouped_images.items(), reverse=True)
+
+    for date, images in sorted_grouped_images:
+        images.sort(key=lambda x: x["upload_time"], reverse=True)
+
+    return sorted_grouped_images
 
 @app.get("/images/{file_id}/preview")
 async def get_image_preview(file_id: str):
