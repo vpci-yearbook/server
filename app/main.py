@@ -38,8 +38,8 @@ def create_preview(image_path, preview_path, height=400):
         return img.width, img.height
 
 @app.post("/upload/")
-async def upload_photo(
-    file: UploadFile = File(...),
+async def upload_photos(
+    files: list[UploadFile] = File(...),
     email: str = Form(...),
     name: str = Form(...),
     photo_context: str = Form(...),
@@ -48,39 +48,43 @@ async def upload_photo(
 
     toronto_tz = pytz.timezone('America/Toronto')
     upload_time = datetime.now(toronto_tz)
-
-    file_id = str(uuid.uuid4())
-    file_path = os.path.join(UPLOAD_DIR, file_id + "-" + file.filename)
-    preview_path = os.path.join(PREVIEW_DIR, file_id + "-" + file.filename)
-
-    with open(file_path, "wb") as buffer:
-        buffer.write(await file.read())
-
-    preview_width, preview_height = create_preview(file_path, preview_path)
-
-    with Image.open(file_path) as img:
-        full_width, full_height = img.width, img.height
-
     tags_list = tags.split(',')
 
-    photo_data = {
-        "file_id": file_id,
-        "filename": file.filename,
-        "email": email,
-        "name": name,
-        "photo_context": photo_context,
-        "tags": tags_list,
-        "full_width": full_width,
-        "full_height": full_height,
-        "preview_width": preview_width,
-        "preview_height": preview_height,
-        "upload_time": upload_time,
-        "approved": False
-    }
-    result = photos_collection.insert_one(photo_data)
+    photo_data_list = []
+
+    for file in files:
+        file_id = str(uuid.uuid4())
+        file_path = os.path.join(UPLOAD_DIR, file_id + "-" + file.filename)
+        preview_path = os.path.join(PREVIEW_DIR, file_id + "-" + file.filename)
+
+        with open(file_path, "wb") as buffer:
+            buffer.write(await file.read())
+
+        preview_width, preview_height = create_preview(file_path, preview_path)
+
+        with Image.open(file_path) as img:
+            full_width, full_height = img.width, img.height
+
+        photo_data = {
+            "file_id": file_id,
+            "filename": file.filename,
+            "email": email,
+            "name": name,
+            "photo_context": photo_context,
+            "tags": tags_list,
+            "full_width": full_width,
+            "full_height": full_height,
+            "preview_width": preview_width,
+            "preview_height": preview_height,
+            "upload_time": upload_time,
+            "approved": False
+        }
+        photo_data_list.append(photo_data)
+
+    result = photos_collection.insert_many(photo_data_list)
 
     if result.acknowledged:
-        return {"file_id": file_id, "filename": file.filename}
+        return {"uploaded_files": [photo["file_id"] for photo in photo_data_list]}
     else:
         raise HTTPException(status_code=500, detail="File upload failed")
 
